@@ -42,7 +42,8 @@ const createSchema: Schema = {
     },
 };
 // GET request
-router.get('/', checkJwt, async (req: Request, res: Response) => {
+router.get('/', checkJwt, async (req: any, res: Response) => {
+    console.log(req.auth.payload);
     handlers.getHandler(req, res);
 });
 

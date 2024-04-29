@@ -8,7 +8,8 @@ function getHandler(req: Request, res: Response) {
     // Logic to retrieve data from the database
     // ...
     // Send the response
-    res.send('GET request processed');
+    res.status(200);
+    res.json({message: 'GET request processed'});
 }
 
 // Function to handle the POST request
