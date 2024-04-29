@@ -11,7 +11,6 @@ import cookieParser = require('cookie-parser');
 
 dotenv.config()
 
-
 const app = express();
 const port = process.env.PORT || 3000;
 app.use(bodyParser.urlencoded({
@@ -32,10 +31,9 @@ app.get('*', function (req, res) {
   res.status(404).json(`No resource for route ${req.url}`);
 });
 
-
 // error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  res.status(500)
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  res.status(err.status || 500)
   res.json({ error: err.message })
 });
 

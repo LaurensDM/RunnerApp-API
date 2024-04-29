@@ -1,24 +1,63 @@
 import express, { Request, Response } from 'express';
 const router = express.Router();
 import handlers from '../service/route';
+import { Schema, checkSchema } from 'express-validator';
+import auth from '../auth/auth';
 
+const { checkJwt } = auth;
+
+const createSchema: Schema = {
+    startPoint: {
+        in: 'body',
+        notEmpty: true,
+        errorMessage: 'Start point is required',
+    },
+    endPoint: {
+        in: 'body',
+        notEmpty: true,
+        errorMessage: 'End point is required',
+    },
+    waypoints: {
+        in: 'body',
+        isArray: true,
+        errorMessage: 'Waypoints must be an array',
+    },
+    distance: {
+        in: 'body',
+        optional: true,
+        isNumeric: true,
+        errorMessage: 'Distance must be a number',
+    },
+    time: {
+        in: 'body',
+        optional: true,
+        isNumeric: true,
+        errorMessage: 'Time must be a number',
+    },
+    advancedOptions: {
+        in: 'body',
+        optional: true,
+        errorMessage: 'Advanced options must be an object',
+        isObject: true,
+    },
+};
 // GET request
-router.get('/', (req: Request, res: Response) => {
+router.get('/', checkJwt, async (req: Request, res: Response) => {
     handlers.getHandler(req, res);
 });
 
 // POST request
-router.post('/', (req: Request, res: Response) => {
+router.post('/', checkJwt, checkSchema(createSchema), async (req: Request, res: Response) => {
     handlers.postHandler(req.body);
 });
 
 // PUT request
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', checkJwt, async (req: Request, res: Response) => {
     handlers.putHandler(req, res);
 });
 
 // DELETE request
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', checkJwt, async (req: Request, res: Response) => {
     handlers.deleteHandler(req, res);
 });
 
