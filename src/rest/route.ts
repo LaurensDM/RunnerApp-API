@@ -48,7 +48,7 @@ router.get('/', checkJwt, async (req: any, res: Response) => {
 });
 
 // POST request
-router.post('/', checkJwt, checkSchema(createSchema), async (req: Request, res: Response) => {
+router.post('/',  checkSchema(createSchema), async (req: Request, res: Response) => {
     handlers.postHandler(req.body);
 });
 
