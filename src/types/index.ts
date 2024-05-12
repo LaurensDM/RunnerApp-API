@@ -2,7 +2,7 @@ type RouteProps = {
     startPoint: Waypoint;
     endPoint: Waypoint;
     waypoints: Waypoint[];
-    distance?: number;
+    distance: number;
     time?: number;
     advancedOptions: AdvancedOptions;
 };

@@ -47,11 +47,14 @@ async function getGeneratedWaypoints(radius: number, start: Waypoint, poiTypes?:
     if (poiTypes) {
         for (const type of poiTypes) {
             generatedWaypoints = await getWaypointsFromOverpass(radius, start.lat, start.lng, type);
+            console.log(generatedWaypoints);
+            
         }
     }
 
     if (surfaceType) {
         surfaceWaypoints = await getWaypointsFromOverpass(radius, start.lat, start.lng, surfaceType);
+        console.log(generatedWaypoints);
     }
 
     return [...generatedWaypoints, ...surfaceWaypoints,];
@@ -61,29 +64,53 @@ async function generateRunningRoute({ startPoint, endPoint, waypoints, distance,
 
     const generatedWaypoints = await getGeneratedWaypoints(distance!, startPoint, advancedOptions.poiTypes, advancedOptions.surfaceType);
 
-    const allWaypoints = [startPoint, ...waypoints, ...generatedWaypoints, endPoint];
+    const allWaypoints = [ ...waypoints, ...generatedWaypoints];
     const runningRouteWaypoints: Waypoint[] = [];
+
 
     let accumulatedDistance = 0;
 
-    for (let i = 0; i < allWaypoints.length - 1; i++) {
+    console.log(allWaypoints);
+    console.log(allWaypoints.length);
+    
+
+    for (let i = 0; i < allWaypoints.length; i++) {
+        const previousWaypoint = i === 0 ? startPoint : allWaypoints[i - 1];
         const waypoint1 = allWaypoints[i];
-        const waypoint2 = allWaypoints[i + 1];
-        const distance = calculateDistance(waypoint1, waypoint2);
-        accumulatedDistance += distance;
-        if (accumulatedDistance <= distance * 1000) { // Convert km to meters
+        const calculatedDistance = calculateDistance(previousWaypoint, waypoint1);
+        const distanceToEnd = calculateDistance(waypoint1, endPoint);
+        // accumulatedDistance += (accumulatedDistance + calculatedDistance) > distance *1000 ? 0 : calculatedDistance;
+        if ((accumulatedDistance + calculatedDistance) > distance *1000 || accumulatedDistance + distanceToEnd > distance * 1000) {
+            accumulatedDistance += 0;
+        } else {
+            accumulatedDistance += calculatedDistance;
+        }
+
+        if (accumulatedDistance <= distance * 1000 ) { // Convert km to meters
             runningRouteWaypoints.push(waypoint1);
         } else {
+            console.log(accumulatedDistance);
+            break;
+        }
+
+        //Only 25 waypoints are allowed in a single request
+        if (runningRouteWaypoints.length === 24) {
             break;
         }
     }
 
+    console.log('Running route waypoints:', runningRouteWaypoints.length);
+    
+    console.log(runningRouteWaypoints);
+
+    return 'ok'
+    
     // Generate route using Google Maps Directions API
     try {
         const response = await generateGoogleRoute(startPoint, endPoint, runningRouteWaypoints);
         return response.data;
-    } catch (error) {
-        console.error('Error fetching route:', error);
+    } catch (error) {        
+        console.error('Error fetching route:', error.response.data);
         return null;
     }
 }

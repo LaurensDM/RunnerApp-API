@@ -1,5 +1,8 @@
 import { Waypoint } from "../../types";
 import axios from "axios";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const { MAPS_API_URL, MAPS_API_KEY } = process.env;
 
@@ -34,14 +37,18 @@ export async function generateGoogleRoute(startPoint: Waypoint, endPoint: Waypoi
                 }
             }))
         ],
-        travelMode: 'WALKING',
+        travelMode: 'WALK',
         units: "IMPERIAL"
     }
     const response = await axios.post(googleMapsApiUrl, body, {
         headers: {
             'Content-Type': 'application/json',
-            'X-Goog-Api-Key': `${MAPS_API_KEY}`
+            'X-Goog-Api-Key': `${MAPS_API_KEY}`,
+            'X-Goog-FieldMask': '*'
         }
     });
+
+    console.log(response.data.routes[0].legs);
+    
     return response.data;
 }

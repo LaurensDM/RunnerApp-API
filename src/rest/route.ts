@@ -44,22 +44,22 @@ const createSchema: Schema = {
 // GET request
 router.get('/', checkJwt, async (req: any, res: Response) => {
     console.log(req.auth.payload);
-    handlers.getHandler(req, res);
+    return handlers.getHandler(req, res);
 });
 
 // POST request
 router.post('/',  checkSchema(createSchema), async (req: Request, res: Response) => {
-    handlers.postHandler(req.body);
+    return handlers.postHandler(req.body);
 });
 
 // PUT request
 router.put('/:id', checkJwt, async (req: Request, res: Response) => {
-    handlers.putHandler(req, res);
+    return handlers.putHandler(req, res);
 });
 
 // DELETE request
 router.delete('/:id', checkJwt, async (req: Request, res: Response) => {
-    handlers.deleteHandler(req, res);
+    return handlers.deleteHandler(req, res);
 });
 
 export default router;
