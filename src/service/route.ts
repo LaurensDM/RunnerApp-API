@@ -102,8 +102,6 @@ async function generateRunningRoute({ startPoint, endPoint, waypoints, distance,
     console.log('Running route waypoints:', runningRouteWaypoints.length);
     
     console.log(runningRouteWaypoints);
-
-    return 'ok'
     
     // Generate route using Google Maps Directions API
     try {
