@@ -5,6 +5,7 @@ import helmet from 'helmet'
 import indexRouter from './rest/index';
 import usersRouter from './rest/users';
 import routeRouter from './rest/route';
+import weatherRouter from './rest/weather';
 import morgan = require('morgan');
 import bodyParser = require('body-parser');
 import cookieParser = require('cookie-parser');
@@ -26,6 +27,7 @@ app.use(express.json());
 app.use('/api', indexRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/route', routeRouter);
+app.use('/api/weather', weatherRouter);
 
 app.get('*', function (req, res) {
   res.status(404).json(`No resource for route ${req.url}`);

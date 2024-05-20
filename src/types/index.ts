@@ -12,10 +12,16 @@ type Waypoint = {
     lng: number;
 };
 
+type WaypointElevation = {
+    lat: number;
+    lng: number;
+    elevation: number;
+};
+
 type AdvancedOptions = {
     poiTypes?: string[];
     surfaceType?: string;
     height: string,
 };
 
-export { RouteProps, Waypoint, AdvancedOptions };
+export { RouteProps, Waypoint, AdvancedOptions, WaypointElevation};

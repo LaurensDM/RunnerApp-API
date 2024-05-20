@@ -5,10 +5,11 @@ export async function getWaypointsFromOverpass(radius: number, latitude: number,
 
     console.log(poiType);
     console.log(radius);
-    
-    
+
+    const distanceRadius: number = Math.floor(radius * 1000 / 1.75);
+        
     // Construct the Overpass query
-    const data = `[out:json];node(around:${radius*1000},${latitude},${longitude})["natural"="tree"];out;`;
+    const data = `[out:json];node(around:${distanceRadius},${latitude},${longitude})["natural"="tree"];out center 50;`;
 
     try {
         // Make a GET request to the Overpass API
@@ -20,12 +21,10 @@ export async function getWaypointsFromOverpass(radius: number, latitude: number,
             lng: element.lon
         }));
         
-        console.log(response.data);
-        
         return waypoints;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching waypoints from Overpass API:', error);
-        return null;
+        return [];
     }
 }
 

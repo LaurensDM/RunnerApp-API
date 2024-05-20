@@ -50,6 +50,7 @@ router.get('/', checkJwt, async (req: any, res: Response) => {
 // POST request
 router.post('/',  checkSchema(createSchema), async (req: Request, res: Response) => {
     const route = await handlers.postHandler(req.body);
+    console.log(route);
     res.json({route: route})
 });
 

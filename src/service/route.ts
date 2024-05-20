@@ -1,5 +1,6 @@
+import { log } from 'console';
 import { RouteProps, Waypoint } from '../types';
-import { generateGoogleRoute } from './helpers/googleMaps';
+import { calculateElevation, generateGoogleRoute } from './helpers/googleMaps';
 import { getWaypointsFromOverpass } from './helpers/overpass';
 import { Request, Response } from "express";
 
@@ -9,7 +10,7 @@ function getHandler(req: Request, res: Response) {
     // ...
     // Send the response
     res.status(200);
-    res.json({message: 'GET request processed'});
+    res.json({ message: 'GET request processed' });
 }
 
 // Function to handle the POST request
@@ -47,14 +48,12 @@ async function getGeneratedWaypoints(radius: number, start: Waypoint, poiTypes?:
     if (poiTypes) {
         for (const type of poiTypes) {
             generatedWaypoints = await getWaypointsFromOverpass(radius, start.lat, start.lng, type);
-            console.log(generatedWaypoints);
-            
         }
     }
 
     if (surfaceType) {
         surfaceWaypoints = await getWaypointsFromOverpass(radius, start.lat, start.lng, surfaceType);
-        console.log(generatedWaypoints);
+
     }
 
     return [...generatedWaypoints, ...surfaceWaypoints,];
@@ -64,50 +63,99 @@ async function generateRunningRoute({ startPoint, endPoint, waypoints, distance,
 
     const generatedWaypoints = await getGeneratedWaypoints(distance!, startPoint, advancedOptions.poiTypes, advancedOptions.surfaceType);
 
-    const allWaypoints = [ ...waypoints, ...generatedWaypoints];
+
     const runningRouteWaypoints: Waypoint[] = [];
 
+    generatedWaypoints.sort((a, b) => {
+        return calculateDistance(startPoint, a) - calculateDistance(startPoint, b);
+    });
 
     let accumulatedDistance = 0;
 
-    console.log(allWaypoints);
-    console.log(allWaypoints.length);
+
+    const elevationWaypoints = await calculateElevation([startPoint, ...generatedWaypoints.slice(0, 510), endPoint]);
+
+    const filteredWaypoints = elevationWaypoints.filter((waypoint) => {
+        const elevationChange = Math.abs(waypoint.elevation - elevationWaypoints[0].elevation); // Assuming startPoint elevation as reference
+        if (elevationChange < 50) { // Adjust thresholds for flat, medium, and steep as needed
+            return advancedOptions.height === 'flat';
+        } else if (elevationChange < 100) {
+            return advancedOptions.height === 'medium';
+        } else {
+            return advancedOptions.height === 'steep';
+        }
+    });
+
+    const accumulatedWaypoints = filteredWaypoints != undefined && filteredWaypoints.length > 2 ? filteredWaypoints : generatedWaypoints;
+    const allWaypoints = [...waypoints.sort((a, b) => calculateDistance(startPoint, a) - calculateDistance(startPoint, b)), ...accumulatedWaypoints];
     
+    console.log('All waypoints:', allWaypoints.length);
+    console.log(allWaypoints);
+    
+    const waypointLimit = 25;
+    let timeOut = 0;
+    if (allWaypoints.length === 0) {
+        let currentPoint = startPoint;
+        while (accumulatedDistance < distance * 10000) { // Convert km to meters
+            // Find the next point along the route
+            const nextPoint = findNextPoint(currentPoint, endPoint, distance * 1000 - accumulatedDistance, (distance / 6 * 1000));
+            const calculatedDistance = calculateDistance(currentPoint, nextPoint);
 
-    for (let i = 0; i < allWaypoints.length; i++) {
-        const previousWaypoint = i === 0 ? startPoint : allWaypoints[i - 1];
-        const waypoint1 = allWaypoints[i];
-        const calculatedDistance = calculateDistance(previousWaypoint, waypoint1);
-        const distanceToEnd = calculateDistance(waypoint1, endPoint);
-        // accumulatedDistance += (accumulatedDistance + calculatedDistance) > distance *1000 ? 0 : calculatedDistance;
-        if ((accumulatedDistance + calculatedDistance) > distance *1000 || accumulatedDistance + distanceToEnd > distance * 1000) {
-            accumulatedDistance += 0;
-        } else {
+            // Add the next point to the running route waypoints
+            runningRouteWaypoints.push(nextPoint);
             accumulatedDistance += calculatedDistance;
-        }
 
-        if (accumulatedDistance <= distance * 1000 ) { // Convert km to meters
-            runningRouteWaypoints.push(waypoint1);
-        } else {
-            console.log(accumulatedDistance);
-            break;
-        }
+            // Update currentPoint for the next iteration
+            console.log(currentPoint);
 
-        //Only 25 waypoints are allowed in a single request
-        if (runningRouteWaypoints.length === 24) {
-            break;
+            currentPoint = nextPoint;
+            if (timeOut > 1000 || runningRouteWaypoints.length === 4) {
+                break;
+            }
+            timeOut++;
+        }
+    } else {
+        for (let i = 0; i < allWaypoints.length; i++) {
+            const previousWaypoint = i === 0 ? startPoint : allWaypoints[i - 1];
+            const waypoint1 = allWaypoints[i];
+            const calculatedDistance = calculateDistance(previousWaypoint, waypoint1);
+            const distanceToEnd = calculateDistance(waypoint1, endPoint);
+            // accumulatedDistance += (accumulatedDistance + calculatedDistance) > distance *1000 ? 0 : calculatedDistance;
+            if ((accumulatedDistance + calculatedDistance) > distance * 1000 || accumulatedDistance + distanceToEnd > distance * 1000) {
+                accumulatedDistance += 0;
+            } else {
+                accumulatedDistance += calculatedDistance;
+            }
+
+            if (accumulatedDistance <= distance * 1000) { // Convert km to meters
+                runningRouteWaypoints.push(waypoint1);
+            } else {
+                console.log(accumulatedDistance);
+                break;
+            }
+
+            //Only 25 waypoints are allowed in a single request
+            if (runningRouteWaypoints.length === waypointLimit) {
+                console.log(accumulatedDistance);
+                break;
+            }
         }
     }
+    runningRouteWaypoints.sort((a, b) => {
+        return calculateDistance(a, endPoint) - calculateDistance(b, endPoint);
+    });
 
     console.log('Running route waypoints:', runningRouteWaypoints.length);
-    
+
     console.log(runningRouteWaypoints);
-    
+
+
+
     // Generate route using Google Maps Directions API
     try {
-        const response = await generateGoogleRoute(startPoint, endPoint, runningRouteWaypoints);
-        return response.data;
-    } catch (error) {        
+        const createdRoute = await generateGoogleRoute(startPoint, endPoint, runningRouteWaypoints);
+        return createdRoute.routes;
+    } catch (error: any) {
         console.error('Error fetching route:', error.response.data);
         return null;
     }
@@ -129,53 +177,58 @@ function calculateDistance(point1: Waypoint, point2: Waypoint) {
     return earthRadius * c;
 }
 
-//This is probably obsolete since it's possible to determine total distance based on the average speed of the user, this can be done in the frontend
-// async function generateRunningRouteByTime({ startPoint, endPoint, waypoints, time, advancedOptions }: RouteProps) {
+
+function findNextPoint(currentPoint: Waypoint, endPoint: Waypoint, remainingDistance: number, distanceBetweenPoints: number = 1000): Waypoint {
+    // Calculate the bearing from the current point to the end point
+    const bearing = calculateBearing(currentPoint, endPoint);
+    console.log(bearing);
 
 
-//     const generatedWaypoints = await getGeneratedWaypoints(time!, startPoint, advancedOptions.poiTypes, advancedOptions.surfaceType);
+    // Calculate the distance to the next point based on the remaining distance
+    const distanceToNextPoint = Math.min(remainingDistance, distanceBetweenPoints); // Choose a distance (e.g., 1 km)
 
-//     const allWaypoints = [startPoint, ...waypoints, ...generatedWaypoints, endPoint];
-//     const runningRouteWaypoints: Waypoint[] = [];
-//     let accumulatedTime = 0;
+    // Calculate the coordinates of the next point along the bearing
+    const nextPoint = calculateDestinationPoint(currentPoint, bearing, distanceToNextPoint);
 
-//     for (let i = 0; i < allWaypoints.length - 1; i++) {
-//         const waypoint1 = allWaypoints[i];
-//         const waypoint2 = allWaypoints[i + 1];
-//         const time = await calculateTravelTime(waypoint1, waypoint2);
+    return nextPoint;
+}
 
-//         accumulatedTime += time;
-//         if (accumulatedTime <= time) {
-//             runningRouteWaypoints.push(waypoint1);
-//         } else {
-//             break;
-//         }
-//     }
 
-//     try {
-//         const response = await generateGoogleRoute(startPoint, endPoint, runningRouteWaypoints);
-//         return response.data;
-//     } catch (error) {
-//         console.error('Error fetching route:', error);
-//         return null;
-//     }
-// }
+function calculateBearing(point1: Waypoint, point2: Waypoint): number {
+    const lat1 = toRadians(point1.lat);
+    const lon1 = toRadians(point1.lng);
+    const lat2 = toRadians(point2.lat);
+    const lon2 = toRadians(point2.lng);
 
-// async function calculateTravelTime(point1, point2) {
-//     const googleMapsApiUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${point1.lat},${point1.lng}&destinations=${point2.lat},${point2.lng}&key=YOUR_API_KEY`;
+    const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+    const bearing = Math.atan2(y, x);
 
-//     try {
-//         const response = await get(googleMapsApiUrl);
-//         const travelTimeSeconds = response.data.rows[0].elements[0].duration.value;
-//         return travelTimeSeconds;
-//     } catch (error) {
-//         console.error('Error calculating travel time:', error);
-//         return Infinity; // Assume infinite travel time in case of error
-//     }
-// }
+    return (toDegrees(bearing) + 360) % 360;
+}
+
+function calculateDestinationPoint(startPoint: Waypoint, bearing: number, distance: number): Waypoint {
+    const R = 6371e3; // Earth radius in meters
+    const φ1 = toRadians(startPoint.lat);
+    const λ1 = toRadians(startPoint.lng);
+    const δ = distance / R; // Angular distance in radians
+
+    const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(bearing));
+    const λ2 = λ1 + Math.atan2(Math.sin(bearing) * Math.sin(δ) * Math.cos(φ1), Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
+
+    const lat = toDegrees(φ2);
+    const lng = toDegrees(λ2);
+
+    return { lat, lng };
+}
+
 
 function toRadians(degrees: number) {
     return degrees * Math.PI / 180;
+}
+
+function toDegrees(radians: number): number {
+    return radians * 180 / Math.PI;
 }
 
 
